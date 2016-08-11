@@ -493,4 +493,43 @@ public class ScanQueryIT extends BaseQueryIT {
         assertOneOfValuesEqualsResultSet(rs, expectedResultsA,expectedResultsB);
        conn.close();
     }
+
+    @Test
+    public void testScanWithSlotSpans() throws Exception {
+        // PHOENIX-2976
+        Properties props = PropertiesUtil.deepCopy(TEST_PROPERTIES);
+        props.setProperty(PhoenixRuntime.CURRENT_SCN_ATTRIB, Long.toString(ts + 2)); // Execute at
+        // timestamp 2
+        Connection upsertConn = DriverManager.getConnection(url, props);
+
+        String ddl =
+                "CREATE TABLE SCAN_UTIL_TEST (id1 SMALLINT NOT NULL, id2 SMALLINT NOT NULL, id3 DECIMAL NOT NULL "
+                        + "CONSTRAINT pk PRIMARY KEY (id1, id2, id3))";
+        upsertConn.createStatement().execute(ddl);
+
+        String dml = "UPSERT INTO SCAN_UTIL_TEST VALUES (1, 2, 11)";
+        upsertConn.createStatement().execute(dml);
+
+        dml = "UPSERT INTO SCAN_UTIL_TEST VALUES (1, 1, 8)";
+        upsertConn.createStatement().execute(dml);
+
+        dml = "UPSERT INTO SCAN_UTIL_TEST VALUES (1, 1, 12)";
+        upsertConn.createStatement().execute(dml);
+        upsertConn.commit();
+
+        upsertConn.close();
+
+        props.setProperty(PhoenixRuntime.CURRENT_SCN_ATTRIB, Long.toString(ts + 3)); // Execute at
+        // timestamp 3
+        Connection conn = DriverManager.getConnection(getUrl(), props);
+
+        ResultSet rs =
+                conn.createStatement().executeQuery("SELECT id1, id2, id3 FROM SCAN_UTIL_TEST "
+                        + "WHERE ((id1,id2) IN ((1,1), (2,2), (3,3))) AND id3 > 10 limit 1");
+        assertTrue(rs.next());
+        assertEquals(1, rs.getInt(1));
+        assertEquals(1, rs.getInt(2));
+        assertEquals(12, rs.getInt(3));
+        assertFalse(rs.next());
+    }
 }

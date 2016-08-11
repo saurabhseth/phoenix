@@ -304,10 +304,11 @@ public class ScanUtil {
         }
         int[] position = new int[slots.size()];
         int maxLength = 0;
+        int fieldIndex = ScanUtil.getRowKeyPosition(slotSpan, 0);
         for (int i = 0; i < position.length; i++) {
             position[i] = bound == Bound.LOWER ? 0 : slots.get(i).size()-1;
             KeyRange range = slots.get(i).get(position[i]);
-            Field field = schema.getField(i + slotSpan[i]);
+            Field field = schema.getField(fieldIndex + slotSpan[i]);
             int keyLength = range.getRange(bound).length;
             if (!field.getDataType().isFixedWidth()) {
                 keyLength++;
@@ -316,6 +317,7 @@ public class ScanUtil {
                 }
             }
             maxLength += keyLength;
+            fieldIndex += slotSpan[i] + 1;
         }
         byte[] key = new byte[maxLength];
         int length = setKey(schema, slots, slotSpan, position, bound, key, 0, 0, position.length);
